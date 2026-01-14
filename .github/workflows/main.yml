@@ -26,9 +26,10 @@ jobs:
         run: pip install flet
 
       - name: Build APK
-        # Adicionado comando para limpar cache e definir permissões
-        run: flet build apk --product "Mozer System" --permissions INTERNET
-
+        # O comando 'run' abaixo garante que estamos na pasta certa
+        run: |
+          flet build apk --product "Mozer System"
+          
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
