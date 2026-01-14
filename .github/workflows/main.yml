@@ -22,14 +22,12 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install Dependencies
-        run: |
-          pip install flet
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      - name: Install Flet
+        run: pip install flet
 
       - name: Build APK
-        # Comando corrigido com o nome do produto:
-        run: flet build apk --product "Mozer System"
+        # Adicionado comando para limpar cache e definir permissões
+        run: flet build apk --product "Mozer System" --permissions INTERNET
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
