@@ -3,85 +3,68 @@ import sqlite3
 import os
 
 def main(page: ft.Page):
-    page.title = "MOZER SYSTEM v2026"
+    # Configurações para garantir visibilidade no Android
+    page.title = "MOZER SYSTEM 2026"
     page.theme_mode = ft.ThemeMode.DARK
-    page.padding = 20
+    page.padding = 0  # Usaremos SafeArea para o padding
     
-    # --- CORREÇÃO DO BANCO DE DADOS PARA ANDROID ---
-    # No Android, precisamos salvar o banco na pasta de dados do app
-    db_path = os.path.join(os.getcwd(), "mozer_master_2026.db")
-    
-    conn = sqlite3.connect(db_path, check_same_thread=False)
-    cursor = conn.cursor()
-    cursor.execute('''CREATE TABLE IF NOT EXISTS produtos 
-        (id INTEGER PRIMARY KEY AUTOINCREMENT, codigo TEXT UNIQUE, nome TEXT, 
-         custo_compra REAL, preco_un REAL, preco_cx REAL, divisor INTEGER)''')
-    conn.commit()
+    # --- BANCO DE DADOS EM LOCAL PERMITIDO NO ANDROID ---
+    try:
+        # Local oficial para dados do app no Flet/Android
+        db_dir = os.path.join(os.getcwd(), "data")
+        if not os.path.exists(db_dir):
+            os.makedirs(db_dir)
+        
+        db_path = os.path.join(db_dir, "mozer_2026.db")
+        conn = sqlite3.connect(db_path, check_same_thread=False)
+        cursor = conn.cursor()
+        cursor.execute('''CREATE TABLE IF NOT EXISTS produtos 
+            (id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, preco REAL)''')
+        conn.commit()
+    except Exception as e:
+        print(f"Erro banco: {e}")
 
-    # --- COMPONENTES DE INTERFACE ---
-    txt_nome = ft.TextField(label="Nome do Produto")
-    txt_custo = ft.TextField(label="Custo Compra", keyboard_type=ft.KeyboardType.NUMBER)
-    txt_preco_un = ft.TextField(label="Preço Unidade", keyboard_type=ft.KeyboardType.NUMBER)
-    
-    lista_produtos = ft.Column(scroll=ft.ScrollMode.AUTO)
+    # --- COMPONENTES ---
+    txt_nome = ft.TextField(label="Nome do Produto", border_color="green")
+    txt_preco = ft.TextField(label="Preço", keyboard_type=ft.KeyboardType.NUMBER)
+    lista_produtos = ft.Column(scroll=ft.ScrollMode.AUTO, expand=True)
 
-    def salvar_produto(e):
-        if not txt_nome.value or not txt_custo.value:
-            page.snack_bar = ft.SnackBar(ft.Text("Preencha os campos obrigatórios!"))
-            page.snack_bar.open = True
-            page.update()
-            return
-
-        try:
-            cursor.execute("INSERT INTO produtos (nome, custo_compra, preco_un) VALUES (?,?,?)", 
-                          (txt_nome.value, float(txt_custo.value), float(txt_preco_un.value)))
+    def salvar(e):
+        if txt_nome.value:
+            cursor.execute("INSERT INTO produtos (nome, preco) VALUES (?,?)", 
+                          (txt_nome.value, float(txt_preco.value or 0)))
             conn.commit()
             txt_nome.value = ""
-            txt_custo.value = ""
-            txt_preco_un.value = ""
+            txt_preco.value = ""
             atualizar_lista()
-            page.snack_bar = ft.SnackBar(ft.Text("Produto Salvo com Sucesso!"))
-            page.snack_bar.open = True
-        except Exception as ex:
-            page.snack_bar = ft.SnackBar(ft.Text(f"Erro ao salvar: {ex}"))
-            page.snack_bar.open = True
-        page.update()
+            page.update()
 
     def atualizar_lista():
         lista_produtos.controls.clear()
-        cursor.execute("SELECT nome, preco_un FROM produtos")
+        cursor.execute("SELECT nome, preco FROM produtos")
         for row in cursor.fetchall():
-            lista_produtos.controls.append(
-                ft.ListTile(
-                    title=ft.Text(row[0]), 
-                    subtitle=ft.Text(f"R$ {row[1]:.2f}"),
-                    leading=ft.Icon(ft.icons.SHOPPING_BAG)
-                )
-            )
+            lista_produtos.controls.append(ft.ListTile(title=ft.Text(row[0]), subtitle=ft.Text(f"R$ {row[1]}")))
         page.update()
 
-    # --- LAYOUT EM ABAS (Mobile Style) ---
-    tabs = ft.Tabs(
-        selected_index=0,
-        tabs=[
-            ft.Tab(text="CADASTRO", content=ft.Container(
+    # --- LAYOUT SEGURO (Evita Tela Preta) ---
+    page.add(
+        ft.SafeArea(
+            ft.Container(
                 content=ft.Column([
-                    txt_nome, txt_custo, txt_preco_un,
-                    ft.ElevatedButton("CADASTRAR", on_click=salvar_produto, bgcolor="green", color="white")
-                ], spacing=20), padding=20
-            )),
-            ft.Tab(text="ESTOQUE", content=ft.Container(
-                content=lista_produtos, padding=20
-            )),
-            ft.Tab(text="VENDAS", content=ft.Center(
-                content=ft.Text("Terminal de Vendas 2026", size=20)
-            )),
-        ],
-        expand=1
+                    ft.Text("MOZER SYSTEM v2026", size=28, weight="bold", color="green"),
+                    txt_nome,
+                    txt_preco,
+                    ft.ElevatedButton("CADASTRAR PRODUTO", on_click=salvar, bgcolor="green", color="white"),
+                    ft.Divider(),
+                    ft.Text("PRODUTOS EM ESTOQUE:", weight="bold"),
+                    lista_produtos
+                ], spacing=15),
+                padding=20,
+                expand=True
+            )
+        )
     )
-
-    page.add(tabs)
     atualizar_lista()
 
-# --- IMPORTANTE: SEMPRE USE APENAS ISSO PARA GERAR APK ---
-ft.app(target=main)
+if __name__ == "__main__":
+    ft.app(target=main)
