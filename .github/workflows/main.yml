@@ -1,37 +1,87 @@
-name: Build APK
-on: [push]
+import flet as ft
+import sqlite3
+import os
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
+def main(page: ft.Page):
+    page.title = "MOZER SYSTEM v2026"
+    page.theme_mode = ft.ThemeMode.DARK
+    page.padding = 20
+    
+    # --- CORREÇÃO DO BANCO DE DADOS PARA ANDROID ---
+    # No Android, precisamos salvar o banco na pasta de dados do app
+    db_path = os.path.join(os.getcwd(), "mozer_master_2026.db")
+    
+    conn = sqlite3.connect(db_path, check_same_thread=False)
+    cursor = conn.cursor()
+    cursor.execute('''CREATE TABLE IF NOT EXISTS produtos 
+        (id INTEGER PRIMARY KEY AUTOINCREMENT, codigo TEXT UNIQUE, nome TEXT, 
+         custo_compra REAL, preco_un REAL, preco_cx REAL, divisor INTEGER)''')
+    conn.commit()
 
-      - uses: subosito/flutter-action@v2
-        with:
-          channel: 'stable'
+    # --- COMPONENTES DE INTERFACE ---
+    txt_nome = ft.TextField(label="Nome do Produto")
+    txt_custo = ft.TextField(label="Custo Compra", keyboard_type=ft.KeyboardType.NUMBER)
+    txt_preco_un = ft.TextField(label="Preço Unidade", keyboard_type=ft.KeyboardType.NUMBER)
+    
+    lista_produtos = ft.Column(scroll=ft.ScrollMode.AUTO)
 
-      - name: Install Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
+    def salvar_produto(e):
+        if not txt_nome.value or not txt_custo.value:
+            page.snack_bar = ft.SnackBar(ft.Text("Preencha os campos obrigatórios!"))
+            page.snack_bar.open = True
+            page.update()
+            return
 
-      - name: Install Dependencies
-        run: |
-          pip install -r requirements.txt
-          pip install flet
+        try:
+            cursor.execute("INSERT INTO produtos (nome, custo_compra, preco_un) VALUES (?,?,?)", 
+                          (txt_nome.value, float(txt_custo.value), float(txt_preco_un.value)))
+            conn.commit()
+            txt_nome.value = ""
+            txt_custo.value = ""
+            txt_preco_un.value = ""
+            atualizar_lista()
+            page.snack_bar = ft.SnackBar(ft.Text("Produto Salvo com Sucesso!"))
+            page.snack_bar.open = True
+        except Exception as ex:
+            page.snack_bar = ft.SnackBar(ft.Text(f"Erro ao salvar: {ex}"))
+            page.snack_bar.open = True
+        page.update()
 
-      - name: Build APK
-        run: flet build apk
+    def atualizar_lista():
+        lista_produtos.controls.clear()
+        cursor.execute("SELECT nome, preco_un FROM produtos")
+        for row in cursor.fetchall():
+            lista_produtos.controls.append(
+                ft.ListTile(
+                    title=ft.Text(row[0]), 
+                    subtitle=ft.Text(f"R$ {row[1]:.2f}"),
+                    leading=ft.Icon(ft.icons.SHOPPING_BAG)
+                )
+            )
+        page.update()
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-release
-          path: build/apk/*.apk
+    # --- LAYOUT EM ABAS (Mobile Style) ---
+    tabs = ft.Tabs(
+        selected_index=0,
+        tabs=[
+            ft.Tab(text="CADASTRO", content=ft.Container(
+                content=ft.Column([
+                    txt_nome, txt_custo, txt_preco_un,
+                    ft.ElevatedButton("CADASTRAR", on_click=salvar_produto, bgcolor="green", color="white")
+                ], spacing=20), padding=20
+            )),
+            ft.Tab(text="ESTOQUE", content=ft.Container(
+                content=lista_produtos, padding=20
+            )),
+            ft.Tab(text="VENDAS", content=ft.Center(
+                content=ft.Text("Terminal de Vendas 2026", size=20)
+            )),
+        ],
+        expand=1
+    )
+
+    page.add(tabs)
+    atualizar_lista()
+
+# --- IMPORTANTE: SEMPRE USE APENAS ISSO PARA GERAR APK ---
+ft.app(target=main)
